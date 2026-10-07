@@ -1,67 +1,114 @@
 # cow-COW 🐄
 
-**A terminal cow written entirely in COW.**
-
-No JavaScript.  
-No Python.  
-No C/C++ game logic.  
-No Three.js.
+A terminal cow whose **game logic and rendering are written entirely in COW**.
 
 ```text
+keyboard line
+   ↓
+cow-stream
+   ↓ one byte at a time
 cow.cow
-   ↓
-COW interpreter
-   ↓
+   ↓ ANSI
 terminal
+   ↓
+🐄
+```
+
+## Build
+
+```bash
+make
 ```
 
 ## Run
 
 ```bash
-~/COW-interpreter/cow cow.cow
+./cow-stream cow.cow
+```
+
+or simply:
+
+```bash
+make run
 ```
 
 ## Controls
 
-The original interpreter reads one character from each submitted terminal line:
+Type an entire movement sequence, then press Enter:
 
 ```text
-W + Enter   up
-S + Enter   down
-A + Enter   left
-D + Enter   right
-Q + Enter   quit
+> WSDASWDAWDD
 ```
 
-Lowercase works too.
+The cow then consumes the buffered characters one by one and moves rapidly:
 
-Do not type `WASD` on one line. The original `Moo` input implementation keeps the first character and consumes the remainder of the line.
+```text
+W → up
+S → down
+D → right
+A → left
+S → down
+...
+```
 
-## Why the input prompt is near the top
+Uppercase and lowercase both work.
 
-The original interpreter uses canonical terminal input, so the terminal echoes the pressed key and Enter.
+`Q` or `q` quits. Any other character, including the final newline, is ignored.
 
-If input is requested on the last terminal row, the echoed Enter scrolls the whole terminal and invalidates the saved cow cursor position.
+## Why cow-stream exists
 
-Therefore `cow.cow` deliberately places the input prompt on rows 4-5, above the cow. This keeps the terminal framebuffer stable while remaining 100% COW.
+Sean Heber's original COW interpreter implements character input roughly as:
 
-## Pure COW
+```cpp
+cell = getchar();
+while (getchar() != '\n');
+```
 
-The COW program performs:
+so `WSDASWDAWDD + Enter` gives COW only the first `W`.
 
-- ASCII input
-- uppercase/lowercase equality tests using `MOO ... moo`
-- ANSI terminal control output
-- cursor save/restore
-- cow erase/redraw
-- relative movement
-- main game loop
+`cow-stream` changes only that input behavior conceptually:
+
+```cpp
+cell = getchar();
+```
+
+The terminal stays in normal canonical mode. Therefore:
+
+1. You type `WSDASWDAWDD`.
+2. Enter submits the line.
+3. The first COW `Moo` reads `W`.
+4. The next COW `Moo` immediately reads `S`.
+5. Then `D`, `A`, and so on.
+6. The final newline is ignored.
+7. Once the input buffer is empty, the next `Moo` waits for another line.
+
+There is no raw-mode keyboard handling.
+
+## Responsibilities
+
+### cow.cow
+
+The game itself:
+
+- W/A/S/D parsing
+- uppercase/lowercase handling
+- movement
+- erase/redraw
+- ANSI rendering
+- main loop
 - quit
 
-Only the 12 standard COW instructions occur in the executable source:
+The source contains only the 12 COW instructions.
 
-```text
-moo mOo moO mOO Moo MOo MoO MOO OOO MMM OOM oom
-```
+### cow-stream.cpp
 
-Current size: **55,716 COW instructions**.
+Only the runtime:
+
+- parses COW source
+- implements the 12 COW instructions
+- provides one-byte-at-a-time stdin to `Moo`
+- flushes stdout so movement frames appear immediately
+
+It does **not** contain cow movement logic.
+
+Current `cow.cow`: **55,674 COW instructions**.
