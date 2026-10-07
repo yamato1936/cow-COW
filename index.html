@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>cow-COW</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+    <header>
+      <div>
+        <h1>cow-COW <span>🐄</span></h1>
+        <p>3D cow, controlled by the COW programming language.</p>
+      </div>
+      <div class="badge">COW VM · Three.js</div>
+    </header>
+
+    <aside class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">PROGRAM</div>
+          <h2>cow.cow</h2>
+        </div>
+        <div id="vm-status" class="status">ready</div>
+      </div>
+
+      <textarea id="source" spellcheck="false"></textarea>
+
+      <div class="buttons">
+        <button id="run">Run COW</button>
+        <button id="reset" class="secondary">Reset cow</button>
+      </div>
+
+      <div class="help">
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+        <span>or arrow keys to roam</span>
+      </div>
+
+      <div class="terminal">
+        <div class="eyebrow">COW STDOUT</div>
+        <pre id="stdout">moo...</pre>
+      </div>
+    </aside>
+
+    <div class="hint">drag to orbit · scroll to zoom</div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
