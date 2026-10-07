@@ -2,10 +2,15 @@
 // cow-stream: COW interpreter for cow-COW
 // Same 12 COW instructions, but Moo input reads ONE byte
 // instead of discarding the rest of the submitted line.
+//
+// Buffered input playback is intentionally paced so that
+// consecutive COW-rendered frames are visible in a terminal.
 //--------------------------------------------
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <thread>
 #include <vector>
 
 using mem_t = std::vector<int>;
@@ -18,9 +23,12 @@ static mem_t::iterator prog_pos;
 static int register_val = 0;
 static bool has_register_val = false;
 
+// Delay before delivering each non-newline input byte to COW.
+// This is runtime pacing only; movement/rendering logic stays in cow.cow.
+static int input_delay_ms = 100;
+
 static void quit(bool error)
 {
-    // Restore terminal cursor even when COW exits unexpectedly.
     std::printf("\033[?25h");
     std::fflush(stdout);
 
@@ -96,17 +104,27 @@ static bool exec_instruction(int instruction)
             if (*mem_pos != 0)
             {
                 std::printf("%c", *mem_pos);
-                // Make every COW-rendered movement visible immediately.
                 std::fflush(stdout);
             }
             else
             {
-                // This is the deliberate cow-stream difference:
-                // read exactly one byte and DO NOT discard the rest of the line.
+                // Read exactly one byte and keep the rest of the submitted
+                // terminal line buffered for later Moo instructions.
                 const int c = std::getchar();
 
                 if (c == EOF)
                     quit(false);
+
+                // The previous COW frame has already been fully rendered
+                // when execution reaches this input instruction again.
+                // Give that frame time to remain visible before delivering
+                // the next buffered command.
+                if (c != '\n' && c != '\r' && input_delay_ms > 0)
+                {
+                    std::this_thread::sleep_for(
+                        std::chrono::milliseconds(input_delay_ms)
+                    );
+                }
 
                 *mem_pos = c;
             }
@@ -213,8 +231,23 @@ int main(int argc, char** argv)
 {
     if (argc < 2)
     {
-        std::printf("Usage: %s program.cow\n", argv[0]);
+        std::printf(
+            "Usage: %s program.cow [frame_delay_ms]\n"
+            "Example: %s cow.cow 100\n",
+            argv[0],
+            argv[0]
+        );
         return 1;
+    }
+
+    if (argc >= 3)
+    {
+        input_delay_ms = std::atoi(argv[2]);
+
+        if (input_delay_ms < 0)
+            input_delay_ms = 0;
+        if (input_delay_ms > 5000)
+            input_delay_ms = 5000;
     }
 
     FILE* f = std::fopen(argv[1], "rb");

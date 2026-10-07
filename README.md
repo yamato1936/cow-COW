@@ -22,93 +22,72 @@ make
 
 ## Run
 
+Default playback is **100 ms per input character**:
+
 ```bash
 ./cow-stream cow.cow
 ```
 
-or simply:
-
-```bash
-make run
-```
-
-## Controls
-
-Type an entire movement sequence, then press Enter:
+Now type a whole sequence and press Enter once:
 
 ```text
 > WSDASWDAWDD
 ```
 
-The cow then consumes the buffered characters one by one and moves rapidly:
+The cow visibly plays every state in order instead of jumping directly to the final position.
+
+## Playback speed
+
+The optional second argument is milliseconds per buffered input character:
+
+```bash
+./cow-stream cow.cow 200   # slow / easy to inspect
+./cow-stream cow.cow 100   # default
+./cow-stream cow.cow 40    # fast
+./cow-stream cow.cow 0     # no pacing; only final state may be perceptible
+```
+
+The Makefile exposes the same setting:
+
+```bash
+make run DELAY=150
+```
+
+## Why WASD previously looked stationary
+
+`WASD` has net displacement zero:
 
 ```text
-W → up
-S → down
-D → right
-A → left
-S → down
-...
+W ↑
+A ←
+S ↓
+D →
 ```
 
-Uppercase and lowercase both work.
+The old buffered interpreter processed those four states so quickly that the terminal repainted them faster than a human could see. The final frame was back at the starting position, which made it look as though nothing happened.
 
-`Q` or `q` quits. Any other character, including the final newline, is ignored.
-
-## Why cow-stream exists
-
-Sean Heber's original COW interpreter implements character input roughly as:
-
-```cpp
-cell = getchar();
-while (getchar() != '\n');
-```
-
-so `WSDASWDAWDD + Enter` gives COW only the first `W`.
-
-`cow-stream` changes only that input behavior conceptually:
-
-```cpp
-cell = getchar();
-```
-
-The terminal stays in normal canonical mode. Therefore:
-
-1. You type `WSDASWDAWDD`.
-2. Enter submits the line.
-3. The first COW `Moo` reads `W`.
-4. The next COW `Moo` immediately reads `S`.
-5. Then `D`, `A`, and so on.
-6. The final newline is ignored.
-7. Once the input buffer is empty, the next `Moo` waits for another line.
-
-There is no raw-mode keyboard handling.
+`cow-stream` now pauses before delivering the next buffered character. Importantly, the runtime still does not calculate movement.
 
 ## Responsibilities
 
 ### cow.cow
 
-The game itself:
+All game behavior:
 
 - W/A/S/D parsing
-- uppercase/lowercase handling
-- movement
+- movement direction
 - erase/redraw
 - ANSI rendering
-- main loop
+- loop
 - quit
-
-The source contains only the 12 COW instructions.
 
 ### cow-stream.cpp
 
-Only the runtime:
+Runtime only:
 
-- parses COW source
-- implements the 12 COW instructions
-- provides one-byte-at-a-time stdin to `Moo`
-- flushes stdout so movement frames appear immediately
+- executes the 12 COW instructions
+- feeds buffered stdin to `Moo` one byte at a time
+- flushes COW stdout
+- paces buffered input so rendered COW frames are visible
 
-It does **not** contain cow movement logic.
-
-Current `cow.cow`: **55,674 COW instructions**.
+No cow coordinates or movement rules live in C++.
