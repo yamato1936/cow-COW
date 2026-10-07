@@ -8,17 +8,21 @@ const sourceEl = document.querySelector("#source");
 const stdoutEl = document.querySelector("#stdout");
 const statusEl = document.querySelector("#vm-status");
 
-window.addEventListener("error", (event) => {
+window.addEventListener("error", event => {
   statusEl.textContent = "error";
   stdoutEl.textContent = "JS error: " + event.message;
 });
 
-window.addEventListener("unhandledrejection", (event) => {
+window.addEventListener("unhandledrejection", event => {
   statusEl.textContent = "error";
   stdoutEl.textContent = "Promise error: " + String(event.reason);
 });
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  alpha: true
+});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -28,156 +32,263 @@ renderer.toneMappingExposure = 1.08;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9bc7da);
-scene.fog = new THREE.FogExp2(0x9bc7da, .018);
+scene.fog = new THREE.FogExp2(0x9bc7da, 0.018);
 
-const camera = new THREE.PerspectiveCamera(42, 1, .1, 150);
-camera.position.set(8,5.8,9.5);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 150);
+camera.position.set(8, 5.8, 9.5);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.target.set(0,1.2,0);
-controls.maxPolarAngle = Math.PI * .49;
+controls.target.set(0, 1.2, 0);
+controls.maxPolarAngle = Math.PI * 0.49;
 controls.minDistance = 5;
 controls.maxDistance = 18;
 
 scene.add(new THREE.HemisphereLight(0xe7f6ff, 0x597348, 2.6));
+
 const sun = new THREE.DirectionalLight(0xfff1d2, 4.2);
-sun.position.set(-5,11,6);
+sun.position.set(-5, 11, 6);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048,2048);
-sun.shadow.camera.left = -20; sun.shadow.camera.right = 20;
-sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -20;
+sun.shadow.camera.right = 20;
+sun.shadow.camera.top = 20;
+sun.shadow.camera.bottom = -20;
 scene.add(sun);
 
 const ground = new THREE.Mesh(
   new THREE.CircleGeometry(42, 96),
-  new THREE.MeshStandardMaterial({color:0x527d45, roughness:1})
+  new THREE.MeshStandardMaterial({ color: 0x527d45, roughness: 1 })
 );
-ground.rotation.x = -Math.PI/2;
+ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-const grid = new THREE.GridHelper(32,32,0xb9d094,0x74945f);
-grid.position.y = .012;
-grid.material.opacity = .18;
+const grid = new THREE.GridHelper(32, 32, 0xb9d094, 0x74945f);
+grid.position.y = 0.012;
+grid.material.opacity = 0.18;
 grid.material.transparent = true;
 scene.add(grid);
 
-for (let i=0;i<48;i++) {
-  const h=.12+Math.random()*.25;
-  const grass=new THREE.Mesh(
-    new THREE.ConeGeometry(.035,h,4),
-    new THREE.MeshStandardMaterial({color:0x79a95a,roughness:1})
+for (let i = 0; i < 48; i++) {
+  const h = 0.12 + Math.random() * 0.25;
+  const grass = new THREE.Mesh(
+    new THREE.ConeGeometry(0.035, h, 4),
+    new THREE.MeshStandardMaterial({ color: 0x79a95a, roughness: 1 })
   );
-  const a=Math.random()*Math.PI*2, r=4+Math.random()*22;
-  grass.position.set(Math.cos(a)*r,h/2,Math.sin(a)*r);
-  grass.rotation.y=Math.random()*Math.PI;
+
+  const a = Math.random() * Math.PI * 2;
+  const r = 4 + Math.random() * 22;
+
+  grass.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+  grass.rotation.y = Math.random() * Math.PI;
   scene.add(grass);
 }
 
 const cow = createCow();
-cow.rotation.y = -.35;
 scene.add(cow);
 
-let velocity = new THREE.Vector3();
-let desired = new THREE.Vector3();
-let output = "";
-let vm;
+// JS does not own game coordinates anymore.
+// These are only render targets decoded from COW stdout.
+const renderTarget = new THREE.Vector3();
+let renderDirection = 4;
+let packet = [];
+let vm = null;
+let dispatch = null;
+let activeKey = null;
+let repeatTimer = 0;
 
-function command(ch) {
-  const c=ch.toLowerCase();
-  if (c==="w") desired.z=-1;
-  if (c==="s") desired.z=1;
-  if (c==="a") desired.x=-1;
-  if (c==="d") desired.x=1;
+function parseDispatchTable(source) {
+  const table = {};
+
+  for (const key of ["W", "S", "A", "D"]) {
+    const match = source.match(new RegExp("@" + key + "=(\\d+)"));
+    if (!match) {
+      throw new Error("Missing @" + key + "=... dispatch entry in cow.cow");
+    }
+    table[key.toLowerCase()] = Number(match[1]);
+  }
+
+  return table;
+}
+
+function directionAngle(dir) {
+  if (dir === 1) return Math.PI / 2;   // W
+  if (dir === 2) return -Math.PI / 2;  // S
+  if (dir === 3) return Math.PI;       // A
+  return 0;                            // D
+}
+
+function consumeCowByte(ch) {
+  packet.push(ch.charCodeAt(0));
+
+  if (packet.length < 3) return;
+
+  const [xByte, zByte, dir] = packet;
+  packet = [];
+
+  const x = xByte - 128;
+  const z = zByte - 128;
+
+  renderTarget.set(x * 0.28, 0, z * 0.28);
+  renderDirection = dir;
+
+  stdoutEl.textContent =
+    "COW STATE\n" +
+    "x = " + x + "\n" +
+    "z = " + z + "\n" +
+    "dir = " + ({1:"W",2:"S",3:"A",4:"D"}[dir] ?? "?");
 }
 
 function boot(source) {
-  output="";
-  stdoutEl.textContent="moo...";
-  vm = new CowVM(source, ch => {
-    output=(output+ch).slice(-36);
-    stdoutEl.textContent=output.replace(/\n/g,"↵");
-    command(ch);
-  });
+  dispatch = parseDispatchTable(source);
+  packet = [];
+  activeKey = null;
+  repeatTimer = 0;
+  renderTarget.set(0, 0, 0);
+  renderDirection = 4;
+  cow.position.set(0, 0, 0);
+  cow.rotation.y = 0;
+
+  vm = new CowVM(source, consumeCowByte);
   vm.step();
-  statusEl.textContent=vm.halted?"halted":"waiting";
+
+  statusEl.textContent = vm.halted ? "halted" : "COW owns state";
+  stdoutEl.textContent = "COW STATE\nx = 0\nz = 0\ndir = D";
+}
+
+function sendKey(key) {
+  if (!vm || !dispatch || dispatch[key] === undefined) return;
+
+  vm.pushInput(dispatch[key]);
+  vm.step();
+
+  statusEl.textContent = vm.halted
+    ? "halted"
+    : vm.waiting
+      ? "COW owns state"
+      : "running";
 }
 
 async function loadProgram() {
   try {
-    const r = await fetch("./programs/cow.cow", { cache: "no-store" });
-    if (!r.ok) throw new Error("Could not load programs/cow.cow (" + r.status + ")");
-    const src = await r.text();
-    sourceEl.value = src;
-    boot(src);
-  } catch (err) {
+    const response = await fetch("./programs/cow.cow", { cache: "no-store" });
+
+    if (!response.ok) {
+      throw new Error(
+        "Could not load programs/cow.cow (" + response.status + ")"
+      );
+    }
+
+    const source = await response.text();
+    sourceEl.value = source;
+    boot(source);
+  } catch (error) {
     statusEl.textContent = "error";
-    stdoutEl.textContent = String(err);
+    stdoutEl.textContent = String(error);
   }
 }
 
 loadProgram();
 
-function send(ch) {
-  if (!vm) return;
-  vm.pushInput(ch);
-  vm.step();
-  statusEl.textContent=vm.halted?"halted":vm.waiting?"waiting":"running";
-}
-
 const keyMap = {
-  ArrowUp:"w", ArrowDown:"s", ArrowLeft:"a", ArrowRight:"d",
-  w:"w",a:"a",s:"s",d:"d",W:"w",A:"a",S:"s",D:"d"
+  ArrowUp: "w",
+  ArrowDown: "s",
+  ArrowLeft: "a",
+  ArrowRight: "d",
+  w: "w",
+  a: "a",
+  s: "s",
+  d: "d",
+  W: "w",
+  A: "a",
+  S: "s",
+  D: "d"
 };
 
-addEventListener("keydown", e=>{
-  if (document.activeElement===sourceEl) return;
-  const c=keyMap[e.key];
-  if (!c) return;
-  e.preventDefault();
-  send(c);
-});
-addEventListener("keyup", e=>{
-  if (keyMap[e.key]) desired.set(0,0,0);
+addEventListener("keydown", event => {
+  if (document.activeElement === sourceEl) return;
+
+  const key = keyMap[event.key];
+  if (!key) return;
+
+  event.preventDefault();
+
+  if (activeKey !== key) {
+    activeKey = key;
+    repeatTimer = 0;
+    sendKey(key);
+  }
 });
 
-document.querySelector("#run").onclick=()=>boot(sourceEl.value);
-document.querySelector("#reset").onclick=()=>{
-  cow.position.set(0,0,0); velocity.set(0,0,0); desired.set(0,0,0);
+addEventListener("keyup", event => {
+  const key = keyMap[event.key];
+  if (key && activeKey === key) {
+    activeKey = null;
+  }
+});
+
+document.querySelector("#run").onclick = () => {
+  try {
+    boot(sourceEl.value);
+  } catch (error) {
+    statusEl.textContent = "error";
+    stdoutEl.textContent = String(error);
+  }
+};
+
+document.querySelector("#reset").onclick = () => {
+  try {
+    boot(sourceEl.value);
+  } catch (error) {
+    statusEl.textContent = "error";
+    stdoutEl.textContent = String(error);
+  }
 };
 
 const clock = new THREE.Clock();
+
 function resize() {
-  const w=innerWidth,h=innerHeight;
-  renderer.setSize(w,h,false);
-  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
 }
-addEventListener("resize",resize); resize();
+
+addEventListener("resize", resize);
+resize();
 
 function animate() {
   requestAnimationFrame(animate);
-  const dt=Math.min(clock.getDelta(),.04);
-  const t=clock.elapsedTime;
 
-  const targetVel=desired.clone().normalize().multiplyScalar(4.0);
-  velocity.lerp(targetVel,1-Math.exp(-dt*7));
-  cow.position.addScaledVector(velocity,dt);
-  cow.position.x=THREE.MathUtils.clamp(cow.position.x,-14,14);
-  cow.position.z=THREE.MathUtils.clamp(cow.position.z,-14,14);
+  const dt = Math.min(clock.getDelta(), 0.04);
+  const t = clock.elapsedTime;
 
-  if (velocity.lengthSq()>.04) {
-    const targetAngle=Math.atan2(velocity.x,velocity.z)-Math.PI/2;
-    let d=targetAngle-cow.rotation.y;
-    d=Math.atan2(Math.sin(d),Math.cos(d));
-    cow.rotation.y += d*(1-Math.exp(-dt*8));
+  // A held physical key simply feeds more input to the COW VM.
+  // Position is never integrated in JavaScript.
+  if (activeKey) {
+    repeatTimer += dt;
+    if (repeatTimer >= 0.075) {
+      repeatTimer = 0;
+      sendKey(activeKey);
+    }
   }
 
-  cow.userData.animate(t, velocity.length());
+  const before = cow.position.clone();
+  cow.position.lerp(renderTarget, 1 - Math.exp(-dt * 12));
+  const visualSpeed = cow.position.distanceTo(before) / Math.max(dt, 0.001);
 
-  controls.target.x += (cow.position.x-controls.target.x)*dt*1.8;
-  controls.target.z += (cow.position.z-controls.target.z)*dt*1.8;
+  const targetAngle = directionAngle(renderDirection);
+  let delta = targetAngle - cow.rotation.y;
+  delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+  cow.rotation.y += delta * (1 - Math.exp(-dt * 10));
+
+  cow.userData.animate(t, visualSpeed);
+
+  controls.target.x += (cow.position.x - controls.target.x) * dt * 1.8;
+  controls.target.z += (cow.position.z - controls.target.z) * dt * 1.8;
+
   controls.update();
-  renderer.render(scene,camera);
+  renderer.render(scene, camera);
 }
+
 animate();
