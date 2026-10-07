@@ -23,7 +23,7 @@ terminal
 
 ## Controls
 
-The original interpreter reads one character from each submitted terminal line.
+The original interpreter reads one character from each submitted terminal line:
 
 ```text
 W + Enter   up
@@ -35,18 +35,27 @@ Q + Enter   quit
 
 Lowercase works too.
 
-Do not type `WASD` on one line: the original `Moo` input implementation keeps the first character and consumes the rest of that line.
+Do not type `WASD` on one line. The original `Moo` input implementation keeps the first character and consumes the remainder of the line.
+
+## Why the input prompt is near the top
+
+The original interpreter uses canonical terminal input, so the terminal echoes the pressed key and Enter.
+
+If input is requested on the last terminal row, the echoed Enter scrolls the whole terminal and invalidates the saved cow cursor position.
+
+Therefore `cow.cow` deliberately places the input prompt on rows 4-5, above the cow. This keeps the terminal framebuffer stable while remaining 100% COW.
 
 ## Pure COW
 
-The program itself performs:
+The COW program performs:
 
 - ASCII input
-- equality tests using `MOO ... moo`
+- uppercase/lowercase equality tests using `MOO ... moo`
 - ANSI terminal control output
+- cursor save/restore
 - cow erase/redraw
 - relative movement
-- the main loop
+- main game loop
 - quit
 
 Only the 12 standard COW instructions occur in the executable source:
@@ -55,6 +64,4 @@ Only the 12 standard COW instructions occur in the executable source:
 moo mOo moO mOO Moo MOo MoO MOO OOO MMM OOM oom
 ```
 
-Current size: **54,148 COW instructions**.
-
-The source is intentionally a chaotic wall of moo.
+Current size: **55,716 COW instructions**.
