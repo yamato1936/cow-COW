@@ -15,11 +15,7 @@ COW interpreter
 terminal
 ```
 
-The executable project is one deliberately chaotic COW source file.
-
 ## Run
-
-Using Sean Heber's original COW interpreter:
 
 ```bash
 ~/COW-interpreter/cow cow.cow
@@ -27,9 +23,7 @@ Using Sean Heber's original COW interpreter:
 
 ## Controls
 
-The original interpreter reads **one character from each submitted terminal line**.
-
-So use one key, then Enter:
+The original interpreter reads one character from each submitted terminal line.
 
 ```text
 W + Enter   up
@@ -39,41 +33,28 @@ D + Enter   right
 Q + Enter   quit
 ```
 
-Lowercase `w/a/s/d/q` works too.
+Lowercase works too.
 
-Do **not** enter `WASD` as a whole line. The original interpreter's character-input path consumes the first character and discards the remainder of that line.
+Do not type `WASD` on one line: the original `Moo` input implementation keeps the first character and consumes the rest of that line.
 
-## What is implemented in COW
+## Pure COW
 
-`cow.cow` itself:
+The program itself performs:
 
-- emits ANSI escape sequences
-- clears the terminal
-- hides/restores the cursor
-- draws and erases the ASCII cow
-- reads terminal input
-- performs ASCII comparisons for both uppercase and lowercase controls
-- moves the terminal cursor
-- redraws the cow
-- runs the game loop
-- exits on Q/q
+- ASCII input
+- equality tests using `MOO ... moo`
+- ANSI terminal control output
+- cow erase/redraw
+- relative movement
+- the main loop
+- quit
 
-The terminal cursor is the cow's position. There is no JavaScript position state.
-
-## Source
-
-Only the 12 standard COW instructions are used:
+Only the 12 standard COW instructions occur in the executable source:
 
 ```text
 moo mOo moO mOO Moo MOo MoO MOO OOO MMM OOM oom
 ```
 
-Current size: **54,168 COW instructions**.
+Current size: **54,148 COW instructions**.
 
-Yes, it is supposed to look like this:
-
-```text
-MoO moO moO OOO MoO MoO MoO Moo MOo MOo MOO moo ...
-```
-
-That is the point.
+The source is intentionally a chaotic wall of moo.
