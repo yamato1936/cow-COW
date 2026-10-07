@@ -1,100 +1,105 @@
 # cow-COW 🐄
 
-A 3D cow whose **game state is executed by the COW esoteric programming language**.
+**A terminal cow written entirely in COW.**
 
-This is intentionally not "JavaScript moves a cow after COW echoes a key" anymore.
+No JavaScript.  
+No Python.  
+No C/C++ game logic.  
+No Three.js.
 
-The split is:
+The executable project is one file:
 
 ```text
-keyboard
+cow.cow
    ↓
-tiny browser input bridge
+COW interpreter
    ↓
-COW VM
-   ↓
-programs/cow.cow
-   ├─ owns X
-   ├─ owns Z
-   ├─ handles W / A / S / D
-   └─ emits [x, z, direction]
-   ↓
-Three.js renderer
-   ↓
-🐄
+terminal
 ```
 
-JavaScript is still required for browser/WebGL access because standard COW has no DOM, WebGL, GPU, keyboard-event, or 3D graphics instructions. The gameplay state itself lives in COW.
+`cow.cow` itself contains only standard COW instructions:
 
-## Run
+```text
+moo mOo moO mOO Moo MOo MoO MOO OOO MMM OOM oom
+```
+
+The deliberately ridiculous wall of `MoO Moo MOo ...` is the source code.
+
+## What the COW program does
+
+The COW program itself:
+
+- prints ANSI terminal control sequences
+- clears the screen
+- hides/restores the terminal cursor
+- draws the ASCII cow
+- reads keyboard input
+- compares the ASCII input against `w`, `a`, `s`, `d`, and `q`
+- erases the previous cow
+- emits relative ANSI cursor movement
+- redraws the cow
+- loops
+
+The terminal cursor is effectively the cow's position. There is no JavaScript state.
+
+## Run with the original COW interpreter
+
+Sean Heber's original interpreter is here:
+
+https://github.com/BigZaphod/COW
+
+One simple build:
 
 ```bash
-python3 -m http.server 8000
+git clone https://github.com/BigZaphod/COW.git ~/COW-interpreter
+g++ -O2 ~/COW-interpreter/source/cow.cpp -o ~/COW-interpreter/cow
 ```
 
-Then open:
+Then from this repository:
+
+```bash
+~/COW-interpreter/cow cow.cow
+```
+
+## Controls
+
+With the original interpreter, type a letter and press Enter:
 
 ```text
-http://localhost:8000
+w + Enter   up
+s + Enter   down
+a + Enter   left
+d + Enter   right
+q + Enter   quit
 ```
 
-Use W/A/S/D or the arrow keys.
+The Enter requirement comes from the original interpreter's terminal input implementation, not from game logic written in another language.
 
-## What COW owns
+## Size
 
-`programs/cow.cow` owns:
+The current program expands to **31,023 COW instructions**.
 
-- X coordinate
-- Z coordinate
-- direction
-- W/A/S/D state transitions
-- the state packet sent to the renderer
+That is intentional.
 
-Memory layout:
+The source should look less like normal software and more like a cow has been repeatedly stepping on Caps Lock.
+
+## Architecture
 
 ```text
-cell 0 : input / computed-jump dispatcher
-cell 1 : x + 128
-cell 2 : z + 128
+             ┌────────────────────┐
+keyboard --->│      cow.cow       │
+             │                    │
+             │ input comparison   │
+             │ terminal movement  │
+             │ cow rendering      │
+             │ main game loop     │
+             └─────────┬──────────┘
+                       │ stdout
+                       v
+                ANSI terminal
+                       │
+                       v
+                      🐄
 ```
 
-Every accepted command emits exactly three bytes:
-
-```text
-[x + 128] [z + 128] [direction]
-```
-
-where direction is:
-
-```text
-1 = W
-2 = S
-3 = A
-4 = D
-```
-
-The browser does not integrate position. It only interpolates visually toward the coordinates produced by COW.
-
-## COW dispatch ABI
-
-The four movement handlers are placed at fixed instruction slots:
-
-```text
-W handler: instruction 64
-S handler: instruction 128
-A handler: instruction 192
-D handler: instruction 256
-```
-
-Because this VM's `mOO` computed jump increments the program counter after assigning it, the input values are one less:
-
-```text
-@W=63
-@S=127
-@A=191
-@D=255
-```
-
-Those values are stored in the small ABI header at the top of `cow.cow`. Everything after that header is COW instructions.
-
-See `programs/COW_ENGINE.md` for the execution model.
+Everything above the interpreter boundary is COW.
