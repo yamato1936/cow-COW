@@ -6,6 +6,8 @@
 
 > No JavaScript. No game engine. Just COW, ANSI escape sequences, and questionable decisions.
 
+![cow-COW demo](cowcow1.gif)
+
 ## Demo
 
 Type a whole sequence at once:
@@ -202,6 +204,7 @@ D →
 .
 ├── cow.cow
 ├── cow-stream.cpp
+├── cowcow1.gif
 ├── Makefile
 ├── README.md
 └── THIRD_PARTY_NOTICES.md
