@@ -7,8 +7,6 @@ No Python.
 No C/C++ game logic.  
 No Three.js.
 
-The executable project is one file:
-
 ```text
 cow.cow
    ↓
@@ -17,45 +15,11 @@ COW interpreter
 terminal
 ```
 
-`cow.cow` itself contains only standard COW instructions:
+The executable project is one deliberately chaotic COW source file.
 
-```text
-moo mOo moO mOO Moo MOo MoO MOO OOO MMM OOM oom
-```
+## Run
 
-The deliberately ridiculous wall of `MoO Moo MOo ...` is the source code.
-
-## What the COW program does
-
-The COW program itself:
-
-- prints ANSI terminal control sequences
-- clears the screen
-- hides/restores the terminal cursor
-- draws the ASCII cow
-- reads keyboard input
-- compares the ASCII input against `w`, `a`, `s`, `d`, and `q`
-- erases the previous cow
-- emits relative ANSI cursor movement
-- redraws the cow
-- loops
-
-The terminal cursor is effectively the cow's position. There is no JavaScript state.
-
-## Run with the original COW interpreter
-
-Sean Heber's original interpreter is here:
-
-https://github.com/BigZaphod/COW
-
-One simple build:
-
-```bash
-git clone https://github.com/BigZaphod/COW.git ~/COW-interpreter
-g++ -O2 ~/COW-interpreter/source/cow.cpp -o ~/COW-interpreter/cow
-```
-
-Then from this repository:
+Using Sean Heber's original COW interpreter:
 
 ```bash
 ~/COW-interpreter/cow cow.cow
@@ -63,43 +27,53 @@ Then from this repository:
 
 ## Controls
 
-With the original interpreter, type a letter and press Enter:
+The original interpreter reads **one character from each submitted terminal line**.
+
+So use one key, then Enter:
 
 ```text
-w + Enter   up
-s + Enter   down
-a + Enter   left
-d + Enter   right
-q + Enter   quit
+W + Enter   up
+S + Enter   down
+A + Enter   left
+D + Enter   right
+Q + Enter   quit
 ```
 
-The Enter requirement comes from the original interpreter's terminal input implementation, not from game logic written in another language.
+Lowercase `w/a/s/d/q` works too.
 
-## Size
+Do **not** enter `WASD` as a whole line. The original interpreter's character-input path consumes the first character and discards the remainder of that line.
 
-The current program expands to **31,023 COW instructions**.
+## What is implemented in COW
 
-That is intentional.
+`cow.cow` itself:
 
-The source should look less like normal software and more like a cow has been repeatedly stepping on Caps Lock.
+- emits ANSI escape sequences
+- clears the terminal
+- hides/restores the cursor
+- draws and erases the ASCII cow
+- reads terminal input
+- performs ASCII comparisons for both uppercase and lowercase controls
+- moves the terminal cursor
+- redraws the cow
+- runs the game loop
+- exits on Q/q
 
-## Architecture
+The terminal cursor is the cow's position. There is no JavaScript position state.
+
+## Source
+
+Only the 12 standard COW instructions are used:
 
 ```text
-             ┌────────────────────┐
-keyboard --->│      cow.cow       │
-             │                    │
-             │ input comparison   │
-             │ terminal movement  │
-             │ cow rendering      │
-             │ main game loop     │
-             └─────────┬──────────┘
-                       │ stdout
-                       v
-                ANSI terminal
-                       │
-                       v
-                      🐄
+moo mOo moO mOO Moo MOo MoO MOO OOO MMM OOM oom
 ```
 
-Everything above the interpreter boundary is COW.
+Current size: **54,168 COW instructions**.
+
+Yes, it is supposed to look like this:
+
+```text
+MoO moO moO OOO MoO MoO MoO Moo MOo MOo MOO moo ...
+```
+
+That is the point.
