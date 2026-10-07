@@ -1,1 +1,1 @@
-# libft-COW
+# cow-COW
