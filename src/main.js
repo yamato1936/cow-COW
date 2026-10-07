@@ -1,5 +1,5 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
-import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/OrbitControls.js";
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CowVM } from "./cowInterpreter.js";
 import { createCow } from "./cowModel.js";
 
@@ -7,6 +7,16 @@ const canvas = document.querySelector("#scene");
 const sourceEl = document.querySelector("#source");
 const stdoutEl = document.querySelector("#stdout");
 const statusEl = document.querySelector("#vm-status");
+
+window.addEventListener("error", (event) => {
+  statusEl.textContent = "error";
+  stdoutEl.textContent = "JS error: " + event.message;
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  statusEl.textContent = "error";
+  stdoutEl.textContent = "Promise error: " + String(event.reason);
+});
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -94,10 +104,20 @@ function boot(source) {
   statusEl.textContent=vm.halted?"halted":"waiting";
 }
 
-fetch("./programs/cow.cow").then(r=>r.text()).then(src=>{
-  sourceEl.value=src;
-  boot(src);
-});
+async function loadProgram() {
+  try {
+    const r = await fetch("./programs/cow.cow", { cache: "no-store" });
+    if (!r.ok) throw new Error("Could not load programs/cow.cow (" + r.status + ")");
+    const src = await r.text();
+    sourceEl.value = src;
+    boot(src);
+  } catch (err) {
+    statusEl.textContent = "error";
+    stdoutEl.textContent = String(err);
+  }
+}
+
+loadProgram();
 
 function send(ch) {
   if (!vm) return;
